@@ -23,6 +23,7 @@ public:
     StratumClient(const string& pool, const string& port, const string& username, const string& password)
         : io_context(), socket(io_context), pool(pool), port(port), username(username), password(password) {}
 
+
     void connect() {
     try {
         ip::tcp::resolver resolver(io_context);
@@ -34,22 +35,16 @@ public:
         Json::Value request1;
         request1["id"] = 1;
         request1["method"] = "mining.authorize";
+
+        // Construire un tableau pour "params"
         Json::Value params(Json::arrayValue);
         params.append(username);
         params.append(password);
+
+        // Ajouter "params" à l'objet JSON
         request1["params"] = params;
 
         sendJSON(request1);
-
-        // Attente de la réponse à mining.authorize
-        Json::Value response = parseJSON(readResponse());
-        if (response.isMember("result") && response["result"].asBool()) {
-            cout << "Authorized successfully!" << endl;
-        } else {
-            cerr << "Authorization failed: " << response.toStyledString() << endl;
-            throw runtime_error("Failed to authorize with the pool.");
-        }
-
 
         // Subscribe to mining
         Json::Value request;
@@ -59,44 +54,46 @@ public:
 
         sendJSON(request);
 
-        // Attente de la réponse à mining.subscribe
-        response = readResponse();
-        jsonResponse = parseJSON(response);
+        // Lire la réponse et analyser le JSON
+        string response = readResponse();
+        Json::Value jsonResponse = parseJSON(response);  // Correction ici
 
-        if (jsonResponse.isMember("error") && !jsonResponse["error"].isNull()) {
-            cerr << "Error in subscribe: " << jsonResponse["error"].toStyledString() << endl;
-            throw runtime_error("Subscription failed.");
+        // Vérifier la méthode "mining.notify"
+        if (jsonResponse.isMember("method") && jsonResponse["method"].asString() == "mining.notify") {
+            // Appeler la fonction de gestion du job
+            handleJob(jsonResponse["params"], 4);  // Exemple avec 4 threads
         } else {
-            cout << "Subscription successful" << endl;
+            cerr << "Invalid method in response: " << jsonResponse.toStyledString() << endl;
         }
-
     } catch (const std::exception& e) {
         cerr << "Error connecting to pool: " << e.what() << endl;
         throw;
     }
 }
 
+void mine(int threadCount) {
+    while (true) {
+        try {
+            string response = readResponse();
+            Json::Value jsonResponse = parseJSON(response);  // Correction ici
 
-    void mine(int threadCount) {
-        while (true) {
-            try {
-                string response = readResponse();
-                Json::Value jsonResponse = parseJSON(response);
-
-                if (jsonResponse.isMember("method") && jsonResponse["method"].asString() == "mining.notify") {
-                    handleJob(jsonResponse["params"], threadCount);
-                } else {
-                    cerr << "Invalid method in response: " << jsonResponse.toStyledString() << endl;
-                }
-
-                // Attendre avant de lire la prochaine réponse
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Pause de 100ms
-            } catch (const std::exception& e) {
-                cerr << "Error during mining: " << e.what() << endl;
-                cerr << "Retrying..." << endl;
+            // Vérification de la méthode du serveur
+            if (jsonResponse.isMember("method") && jsonResponse["method"].asString() == "mining.notify") {
+                handleJob(jsonResponse["params"], threadCount);
+            } else {
+                cerr << "Invalid method in response: " << jsonResponse.toStyledString() << endl;
             }
+
+            // Ajout d'un délai pour éviter un usage excessif du CPU
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Pause de 100ms
+        } catch (const std::exception& e) {
+            cerr << "Error during mining: " << e.what() << endl;
         }
     }
+}
+
+
+
 
 private:
     io_context io_context;
