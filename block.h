@@ -1,18 +1,25 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
-#include <cstdint>
 #include <string>
+#include <vector>
+#include <cstdint>
 
 struct Block {
-    uint32_t version;
-    uint32_t prevBlockHash[8];
-    uint32_t merkleRoot[8];
+    std::string prevBlockHash;
+    std::string coinbase1;
+    std::string coinbase2;
+    std::vector<std::string> merkleBranches;
+    std::string version;
+    std::string nBits;
+    uint32_t nonce;
+    std::string merkleRoot;
     uint32_t timestamp;
     uint32_t difficulty;
-    uint32_t nonce;
 
-    std::string toString() const; // Déclaration de la méthode
+    std::string calculateHash() const;
+    bool isValidHash(const std::string& hash) const;
+    std::string toString() const;
 };
 
 #endif // BLOCK_H
